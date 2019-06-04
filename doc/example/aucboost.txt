@@ -1,0 +1,472 @@
+#
+# aucboost_c++.txt
+#
+
+Analysis by AUC boosting
+
+# Input data
+To train the AUC boosting machine, users must prepare an input data file
+with the CSV format. Rows and columns of the file correspond to sources
+(astronomical objects) and features of the sources.
+The file must also contain a column of real/bogus flag.
+In the following example, the input file is
+"fake31822_4sigma_20160512_head1000.csv".
+
+   format: CSV format
+   columns: num,patch,mag,magerr,elongation_norm,fwhm_norm,
+            significance_abs,residual,psffit_sigma_ratio,
+            psffit_peak_ratio,frac_det,density,density_good,
+            bapsf,psf,score
+            (num: index from one: 1, 2, 3, ...)
+            Details of the meaning of the features are shown in
+            M. Morii et al. (2016) PASJ, 68, 104.
+   number of rows: 999
+
+   "num" is not used in c++ version.
+
+# There are 5 Steps:
+# 0-th step is to make random partitioned data.
+# 1st and 2nd steps are to make an averaged ROC curve 
+# to check the performance of AUC boosting.
+# 3rd and 4th steps are to make a trained machine.
+# 1st and 2nd steps can be skipped, if you need not evaluate the ROC curve.
+
+0. Random partitioning step
+   Make N (for example, 30) data sets by randomly partitioning
+   the ID list ("num" column) of the input data.
+   Each data set is made of three lists of the ID
+   (training data, validation data, test data),
+   with (nearly) equal numbers of entries.
+
+   For example, 
+   cv[01-30]-te.csv         : test data (30 files)
+   cv[01-30]-[01-30]-tr.csv : training data (30 x 30 files)
+   cv[01-30]-[01-30]-vl.csv : validation data (30 x 30 files)
+
+   (cv01-01-tr.csv + cv01-01-vl.csv), (cv01-02-tr.csv + cv01-02-vl.csv), ...,  
+   (cv01-30-tr.csv + cv01-30-vl.csv) are the same. They are complementary set of cv01-te.csv.
+
+   These data (training data, validation data, test data) are used differently
+   in two contexts. One is to make a trained machine and the other is to make an averaged ROC curve.
+   In the former context (to make a trained machine), cv01-01-tr.csv and cv01-01-vl.csv data are
+   merged (cv01-01-tr.csv + cv01-01-vl.csv) and used for the training data.
+   The corrsponding cv01-te.csv is used for the test data.
+   In the latter context (to make an averaged ROC curve), cv01-01-tr.csv is used for training,
+   cv01-01-vl.csv is used for validation, and cv01-te.csv is used for test.
+
+1. To make an averaged ROC curve:
+   A machine is trained by using a training data (cv01-01-tr.csv) with hyper-parameter (lambda)
+   values varied (For example, 10 points from 1.e-5 to 1.e+2 in log scale).
+   The performance of the 10 trained machines with different lambdas
+   is evaluated by applying these machines for the corresponding validation data (cv01-01-vl.csv), 
+   where the performance is evaluated by the AUC value.
+   The best lambda value among the 10 lambda values is determined.
+   This process is repeated in 30 pairs of training and validation data: (cv01-01-tr.csv, cv01-01-vl.csv),
+   (cv01-02-tr.csv, cv01-02-vl.csv), ..., (cv01-30-tr.csv, cv01-30-vl.csv),
+   so 30 lambda values are obtained. Then, the averaged lambda value is calculated.
+   This lambda value is the best lambda value for the complementary data set of cv01-te.csv,
+   that is for example (cv01-01-tr.csv + cv01-01-vl.csv).
+   Furthermore, the above process is repeated in the 30 partitions:
+   (cv01-te.csv, (cv01-[01-30]-tr.csv, cv01-[01-30]-vl.csv) ),
+   (cv02-te.csv, (cv02-[01-30]-tr.csv, cv02-[01-30]-vl.csv) ), ...,
+   (cv30-te.csv, (cv30-[01-30]-tr.csv, cv30-[30-30]-vl.csv) ).
+   For each partition, the best lambda value can be different.
+
+2. To make an averaged ROC curve:
+   For each partition, a machine is trained by using (cv01-01-tr.csv + cv01-01-vl.csv)
+   with the lambda value fixed to the best lambda determined in the previous step.
+   The performance of the trained machines is evaluated by applying the machine
+   for the corresponding test data (cv01-te.csv). Then, one ROC curve is obtained for
+   each partition. This process is repeated in the 30 partitions, 
+   then 30 ROC curves are obtained. Finally, the averaged ROC curve can be obtained.
+
+   For each partition, the process shown in the following step 3 and 4 is simulated.
+   The final ROC curve corresponds to the ensemble of such 30 simulations.
+
+3. To make a trained machine:
+   For each partition, a machine is trained by using training+validation data
+   with lambda values varied (For example, 10 points from 1.e-5 to 1.e+2 in log scale).
+   The performance of the 10 trained machines with different lambdas is evaluated
+   by applying these machines for the corresponding test data (cv01-te.csv),
+   where the performance is evaluated by the AUC value.
+   The best lambda value among the 10 lambda values is determined.
+   This process is repeated in 30 partitions, so 30 lambda values are obtained. 
+   Then, the averaged lambda value is calculated as the best lambda value.
+
+4. To make a trained machine:
+   The final trained machine is made by using all the data as the training data
+   by setting the lambda to the best lambda obtained by the 3rd step.
+   The final trained machine is indeed a file containing parameters.
+   This parameter file is used as the input parameter file of the python script
+   (calc_score_th.py) in TrainedMachine directory.
+
+
+###
+### example
+###
+
+mkdir -p /home/morii/work/hsc/ana/17020700
+cd       /home/morii/work/hsc/ana/17020700
+
+### Make random sample list from the input csvfile
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+nset=30
+outdir=fake31822
+ncore=5
+
+/home/morii/work/github/moriiism/hsc/script/util/mk_ransmpl.S.R \
+${csvfile} \
+${nset} \
+${outdir} \
+${ncore}
+
+---> output
+fake31822/cv??-te.csv : test data
+fake31822/cv??-??-tr.csv : training data
+fake31822/cv??-??-vl.csv : validation data
+
+### step1: to make an averaged ROC curve
+# training and validation
+
+mkdir setup
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+source_id_dir=fake31822
+lambda_dat=setup/lambda.dat
+niter=150
+nset=30
+outdir=trvl_step1
+ncore=5
+
+cat << EOF > setup/lambda.dat
+# npoint  lo  up  scale
+10   1.e-5  1.e2   log
+EOF
+
+/home/morii/work/github/moriiism/hsc/script/aucboost/case/16051900/step1.S.R \
+${csvfile} \
+${source_id_dir} \
+${lambda_dat} \
+${niter} \
+${nset} \
+${outdir} \
+${ncore}
+
+--->  best lambda values for test data are written in trvl_step1/lambda.dat
+
+
+### step2 : to make an averaged ROC curve
+# Train machines by setting hyper parameters of lambda for each test data,
+# using train+validate_data
+# and evaluate the trained machine by test-data
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+source_id_dir=fake31822
+lambda_file=trvl_step1/lambda.dat
+niter=150
+nset=30
+outdir=trvl_step2
+ncore=5
+
+/home/morii/work/github/moriiism/hsc/script/aucboost/case/16051900/step2.S.R \
+${csvfile} \
+${source_id_dir} \
+${lambda_file} \
+${niter} \
+${nset} \
+${outdir} \
+${ncore}
+
+Please, make an averaged ROC curve by using 30 ROC curves:
+trvl_step2/cv[01-30]-te.csv/roc_func_te.dat
+# Indeed, Morii has a (ad hoc and dirty) program
+# to make an averaged ROC curve from these roc curves.
+# It contains functions using redundant libraries,
+# so Morii recommends for you to do it yourself.
+
+### step3 : to make a trained machine
+# Calculate the best hyper parameter of lambda
+
+mkdir setup
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+source_id_dir=fake31822
+lambda_dat=setup/lambda.dat
+niter=150
+nset=30
+outdir=trvl_step3
+ncore=5
+
+cat << EOF > setup/lambda.dat
+# npoint  lo  up  scale
+5   1.e-5  1.e2   log
+EOF
+
+/home/morii/work/github/moriiism/hsc/script/aucboost/case/16051900/step3.S.R \
+${csvfile} \
+${source_id_dir} \
+${lambda_dat} \
+${niter} \
+${nset} \
+${outdir} \
+${ncore}
+
+The best hyper-parameter lambda is written in
+trvl_step3/lambda.dat
+
+### step4 : to make a trained machine
+# Make the final trained machine by using all the data
+# by setting the hyper parameter of lambda
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+lambda=5.011872336e-05
+niter=150
+outdir=trvl_step4
+
+/home/morii/work/github/moriiism/hsc/script/aucboost/case/16051900/step4.S.R \
+${csvfile} \
+${lambda} \
+${niter} \
+${outdir}
+
+
+# output 
+trained parameter file to be used the trained machine:
+trvl_step4/score_func.dat
+
+
+
+# copy the trained parameter file to TrainedMachine
+# and remove the first row: "a b p alpha"
+
+sed -e '1d' <trained_parameter_file>  >  \
+/home/morii/work/github/moriiism/hsc/TrainedMachine/trained.dat
+
+# run the trained machine
+
+/home/morii/work/github/moriiism/hsc/TrainedMachine/calc_score_th.py \
+/home/morii/work/github/moriiism/hsc/TrainedMachine/trained_16070700.dat \
+<input.csv.file>  \
+<output.file>  \
+<threshold>
+
+
+###
+### more detailed explanation of the above processes.
+###
+
+orginal data: fake31822_4sigma_20160512_head1000.csv
+              contains columns of features and real/bogus flag,
+              and contains 999 rows.
+
+0th step, random partitioning step, produces the following
+partitioned data sets.
+
+  test data   validation data   training data
+  333 rows         333 rows       333 rows
+cv01-te.csv -- cv01-01-vl.csv  cv01-01-tr.csv
+               cv01-02-vl.csv  cv01-02-tr.csv
+                     :               :
+                     :               :
+               cv01-30-vl.csv  cv01-30-tr.csv
+
+cv02-te.csv -- cv02-01-vl.csv  cv02-01-tr.csv
+               cv02-02-vl.csv  cv02-02-tr.csv
+                     :               :
+                     :               :
+               cv02-30-vl.csv  cv02-30-tr.csv
+    :       
+    :
+cv30-te.csv -- cv30-01-vl.csv  cv30-01-tr.csv
+               cv30-02-vl.csv  cv30-02-tr.csv
+                     :               :
+                     :               :
+               cv30-30-vl.csv  cv30-30-tr.csv
+
+3rd and 4th steps produce a trained machine.
+One lambda value is determined in 3rd step as follows:
+             training                 test
+(cv01-01-vl.csv + cv01-01-tr.csv), cv01-te.csv ----> lambda_01 --+
+(cv02-01-vl.csv + cv02-01-tr.csv), cv02-te.csv ----> lambda_02 --+
+                                :                        :       +--(average)--> lambda_best
+                                :                        :       |
+(cv30-01-vl.csv + cv30-01-tr.csv), cv30-te.csv ----> lambda_30 --+
+
+4th step uses the lambda_best value. It use all the data as the training data:
+(cv01-te.csv + cv01-01-vl.csv + cv01-01-tr.csv).
+
+1st and 2nd steps simulate the 3rd and 4th steps in every 30 partition.
+One lambda value is determined in 1st step as follows:
+    training         test 
+cv01-01-tr.csv, cv01-01-vl.csv ----> lambda_01_01 --+
+cv01-02-tr.csv, cv01-02-vl.csv ----> lambda_01_02 --+
+              :                         :           +--(average)--> lambda_best_01
+              :                         :           |
+cv01-30-tr.csv, cv01-30-vl.csv ----> lambda_01_30 --+
+
+cv02-01-tr.csv, cv02-01-vl.csv ----> lambda_02_01 --+
+cv02-02-tr.csv, cv02-02-vl.csv ----> lambda_02_02 --+
+              :                         :           +--(average)--> lambda_best_02
+              :                         :           |
+cv02-30-tr.csv, cv02-30-vl.csv ----> lambda_02_30 --+
+                        :
+                        :
+cv30-01-tr.csv, cv30-01-vl.csv ----> lambda_30_01 --+
+cv30-02-tr.csv, cv30-02-vl.csv ----> lambda_30_02 --+
+              :                         :           +--(average)--> lambda_best_30
+              :                         :           |
+cv30-30-tr.csv, cv30-30-vl.csv ----> lambda_30_30 --+
+
+30 ROC curves and an averaged ROC curve are made as follows:
+            training                  test
+(cv01-01-tr.csv + cv01-01-vl.csv), cv01-te.csv, using lambda_best_01  ---> ROC_curve_01 --+
+(cv02-01-tr.csv + cv02-01-vl.csv), cv02-te.csv, using lambda_best_02  ---> ROC_curve_02 --+
+                               :                                               :          +-- (average)--> ROC curve
+                               :                                               :          |
+(cv30-01-tr.csv + cv30-01-vl.csv), cv30-te.csv, using lambda_best_30  ---> ROC_curve_30 --+
+
+
+#########################################
+
+
+
+cd /home/morii/work/hsc/ana
+mkdir 19032501
+cd 19032501
+
+mkdir data
+
+head -1000 ../../data/20160519/fake31822_4sigma_20160512.csv \
+> data/fake31822_4sigma_20160512_head1000.csv
+
+
+### step0
+### Make random sample list from the input csvfile
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+csv_version=16051900
+## csv_version=17112400
+nset=5
+outdir=fake31822
+seed=0
+
+/home/morii/work/github/mmorii/hsc/step/step0/step0 \
+$csvfile \
+$csv_version \
+$nset \
+$outdir \
+$seed
+
+### step1: to make an averaged ROC curve
+# training and validation
+
+mkdir setup
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+csv_version=16051900
+## csv_version=17112400
+source_id_dir=fake31822
+lambda_dat=setup/lambda.dat
+niter=100
+nset=5
+outdir=trvl_step1
+
+cat << EOF > setup/lambda.dat
+# npoint  lo  up  scale
+5   1.e-5  1.e2   log
+EOF
+
+/home/morii/work/github/mmorii/hsc/step/step1/step1 \
+$csvfile \
+$csv_version \
+$source_id_dir \
+$lambda_dat \
+$niter \
+$nset \
+$outdir
+
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+csv_version=16051900
+## csv_version=17112400
+source_id_dir=fake31822
+lambda_file=trvl_step1/lambda.dat
+niter=100
+nset=5
+outdir=trvl_step2
+
+/home/morii/work/github/mmorii/hsc/step/step2/step2 \
+$csvfile \
+$csv_version \
+$source_id_dir \
+$lambda_file \
+$niter \
+$nset \
+$outdir
+
+
+### step3 : to make a trained machine
+# Calculate the best hyper parameter of lambda
+
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+csv_version=16051900
+## csv_version=17112400
+source_id_dir=fake31822
+lambda_dat=setup/lambda.dat
+niter=100
+nset=5
+outdir=trvl_step3
+
+cat << EOF > setup/lambda.dat
+# npoint  lo  up  scale
+5   1.e-5  1.e2   log
+EOF
+
+/home/morii/work/github/mmorii/hsc/step/step3/step3 \
+$csvfile \
+$csv_version \
+$source_id_dir \
+$lambda_dat \
+$niter \
+$nset \
+$outdir
+
+
+The best hyper-parameter lambda is written in
+cat trvl_step3/lambda.dat
+
+### step4 : to make a trained machine
+# Make the final trained machine by using all the data
+# by setting the hyper parameter of lambda
+
+csvfile=data/fake31822_4sigma_20160512_head1000.csv
+csv_version=16051900
+## csv_version=17112400
+lambda=1.25893e-03
+niter=100
+outdir=trvl_step4
+
+/home/morii/work/github/mmorii/hsc/step/step4/step4 \
+$csvfile \
+$csv_version \
+$lambda \
+$niter \
+$outdir
+
+
+# output 
+trained parameter file to be used the trained machine:
+trvl_step4/boosting_par.dat
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,86 @@
+#
+# Makefile.in
+#
+
+HSC_ROOT_DIR = /home/morii/work/github/moriiism/hsc
+
+HSC_LIB = -L${HSC_ROOT_DIR}/hsclib -lhsclib
+HSC_INC = -I${HSC_ROOT_DIR}/hsclib
+
+
+# HSC_BIN_DIR = ${HSC_ROOT_DIR}/bin
+# HSC_LIB_DIR = ${HSC_ROOT_DIR}/lib
+# HSC_INC_DIR = ${HSC_ROOT_DIR}/include
+
+# INST_BIN_DIR = ${HSC_BIN_DIR}
+# INST_LIB_DIR = ${HSC_LIB_DIR}
+# INST_INC_DIR = ${HSC_INC_DIR}
+
+#### eigen
+# EIGEN_INC = -I/soft/eigen/3.2.8/include/eigen3
+
+#### blas
+##BLAS_LIB = /home/morii/admin/BLAS/BLAS-3.6.0/blas_LINUX.a
+
+
+#### cblas
+# CBLAS_INC = -I/home/morii/admin/BLAS/CBLAS/include
+# CBLAS_LIB = /home/morii/admin/BLAS/CBLAS/lib/cblas_LINUX.a
+
+#### lapack
+##LAPACK_LIB = -L/home/morii/admin/LAPACK/lapack-3.6.0 -llapack -lgfortran
+
+
+#### OpenBLAS
+#OPENBLAS_DIR = /soft/OpenBLAS/12ab180
+#OPENBLAS_LIB = -L${OPENBLAS_DIR}/lib -lopenblas -lpthread -lgfortran
+## OPENBLAS_LIB = ${OPENBLAS_DIR}/lib/libopenblas.a -lpthread -lgfortran
+# OPENBLAS_INC = -I${OPENBLAS_DIR}/include
+
+#### GotoBLAS2
+GOTOBLAS2_DIR = /home/morii/admin/GotoBLAS2/GotoBLAS2
+# GOTOBLAS2_LIB = -L${GOTOBLAS2_DIR} -lgoto2 -lpthread -lgfortran
+#GOTOBLAS2_LIB = -L${GOTOBLAS2_DIR} -lgoto2 -lgfortran
+# GOTOBLAS2_INC = L${GOTOBLAS2_DIR}/include
+GOTOBLAS2_LIB = ${GOTOBLAS2_DIR}/libgoto2.a -lpthread -lgfortran
+
+#### OpenMPI
+##OPENMPI_LIB = -L/usr/lib64/openmpi/lib -lmpi -lmpi_cxx -L/usr/lib64 -lpthread
+##OPENMPI_INC = -I/usr/include/openmpi-x86_64
+
+### MersenneTwister
+MT_DIR = /soft/MersenneTwister/mt19937-64
+MT_INC = -I$(MT_DIR)/include
+MT_LIB = -L$(MT_DIR)/lib -lmt19937-64
+
+### cfitsio
+CFITSIO_DIR = /soft/cfitsio/3380
+CFITSIO_INC = -I$(CFITSIO_DIR)/include
+CFITSIO_LIB = -L$(CFITSIO_DIR)/lib -lcfitsio
+
+### milib
+MITOOL_DIR = /home/morii/work/github/moriiism/mitool
+MILIB_DIR = ${MITOOL_DIR}/milib
+MILIB_INC = -I$(MILIB_DIR)/include
+MILIB_LIB = -L$(MILIB_DIR)/lib -lmilib
+
+### library
+LIB = -lm -lrt
+# -lreadline -ltermcap -ldl
+
+# compiler
+FC = f77
+# FC = gfortran
+CC = gcc
+CXX = g++
+LD = gcc
+
+FFLAGS   = -Wall -g -O2 -fPIC
+CFLAGS   = -Wall -g -O2 -fPIC
+CXXFLAGS = -Wall -g -O3 -fPIC -std=c++0x
+LDFLAGS  = -g -O2
+
+FCN     = $(FC) $(FFLAGS) $(INCLUDE)
+CCN     = $(CC) $(CFLAGS) $(INCLUDE)
+CXXN    = $(CXX) $(CXXFLAGS) $(INCLUDE)
+
