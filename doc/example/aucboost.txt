@@ -126,7 +126,7 @@ nset=30
 outdir=fake31822
 seed=0
 
-/home/morii/work/github/mmorii/hsc/step/step0/step0 \
+/home/morii/work/github/moriiism/hsc/step/step0/step0 \
 $csvfile \
 $csv_version \
 $nset \
@@ -161,7 +161,7 @@ cat << EOF > setup/lambda.dat
 EOF
 
 
-/home/morii/work/github/mmorii/hsc/step/step1/step1 \
+/home/morii/work/github/moriiism/hsc/step/step1/step1 \
 $csvfile \
 $csv_version \
 $source_id_dir \
@@ -189,7 +189,7 @@ niter=150
 nset=30
 outdir=trvl_step2
 
-/home/morii/work/github/mmorii/hsc/step/step2/step2 \
+/home/morii/work/github/moriiism/hsc/step/step2/step2 \
 $csvfile \
 $csv_version \
 $source_id_dir \
@@ -219,7 +219,7 @@ cat << EOF > setup/lambda.dat
 5   1.e-5  1.e2   log
 EOF
 
-/home/morii/work/github/mmorii/hsc/step/step3/step3 \
+/home/morii/work/github/moriiism/hsc/step/step3/step3 \
 $csvfile \
 $csv_version \
 $source_id_dir \
@@ -246,7 +246,7 @@ lambda=5.011872336e-05
 niter=150
 outdir=trvl_step4
 
-/home/morii/work/github/mmorii/hsc/step/step4/step4 \
+/home/morii/work/github/moriiism/hsc/step/step4/step4 \
 $csvfile \
 $csv_version \
 $lambda \
